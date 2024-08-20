@@ -11,11 +11,13 @@ import textwrap
 import os
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from qdrant_client import QdrantClient
+from dotenv import load_dotenv
 
+load_dotenv()
 app = Flask(__name__)
 
 # Initialize your components here, so they are ready to be used by the API endpoints
-os.environ["GROQ_API_KEY"] = "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"
+os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
 client = QdrantClient(url="http://localhost:6333") 
 embeddings = FastEmbedEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 qdrant = Qdrant(
