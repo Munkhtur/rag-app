@@ -51,3 +51,13 @@ def segment_text():
     print("---------------checked docs ----------------------")
     print(chunked_docs[0])
     return chunked_docs
+
+
+    # ""
+    # here is part of a text to be used rag app.
+
+    # create data augmentation to fine tune model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2') 
+    # in the following csv format
+    # sentence1,sentence2,label
+    # "Шижуудай Доголдай хоёр бүлгээ.","Шижуудай, Доголдай хоёр бүлэгтэй.",1. 
+    # create as many examples as possible

@@ -1,3 +1,5 @@
+import logging
+logging.basicConfig(level=logging.INFO)
 from flask import Flask, request, jsonify
 from langchain.vectorstores import Qdrant
 from get_embedding_function import get_embedding_function
@@ -14,6 +16,49 @@ from qdrant_client import QdrantClient
 from dotenv import load_dotenv
 from langchain.embeddings.base import Embeddings
 from sentence_transformers import SentenceTransformer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
+from llama_index.llms.huggingface import HuggingFaceLLM
+
+# import torch
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
+from IPython.display import Markdown, display
+# base_model = AutoModelForCausalLM.from_pretrained("unsloth/Meta-Llama-3.1-8B")
+
+# # # Load the tokenizer
+# tokenizer = AutoTokenizer.from_pretrained("unsloth/Meta-Llama-3.1-8B")
+
+# fine_tuned_model = PeftModel.from_pretrained(base_model, "history_lora_model")
+llm = HuggingFaceLLM(
+    context_window=4096,
+    max_new_tokens=256,
+    generate_kwargs={"temperature": 0.7, "do_sample": False},  
+    tokenizer_name="gmunkhtur/llama3-secret-history",
+    model_name="gmunkhtur/llama3-secret-history",
+    device_map="auto",
+    stopping_ids=[50278, 50279, 50277, 1, 0],
+    tokenizer_kwargs={"max_length": 4096},
+    # model_kwargs={"torch_dtype": torch.float16},
+)
+
+# class CustomLLM:
+#     def __init__(self, model, tokenizer):
+#         self.model = model
+#         self.tokenizer = tokenizer
+
+#     def __call__(self, prompt):
+#         # Tokenize the input prompt
+#         inputs = self.tokenizer(prompt, return_tensors="pt")
+
+#         # Generate response
+#         outputs = self.model.generate(**inputs, max_length=512, eos_token_id=self.tokenizer.eos_token_id)
+
+#         # Decode the generated response
+#         response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+#         return response
+
+#     def generate(self, prompt):
+#         return self.__call__(prompt)
 
 
 load_dotenv()
@@ -38,17 +83,22 @@ class CustomSentenceTransformerEmbeddings(Embeddings):
 
 # Initialize the embedding model
 embedding_model = CustomSentenceTransformerEmbeddings('./history-fine-tuned')
-qdrant = Qdrant(
+Settings.llm = llm  # Set your LLM here, e.g., OpenAI, LLaMA, etc.
+Settings.chunk_size = 1024
+Settings.embed_model = embedding_model
+# Settings.transformations = [SentenceSplitter(chunk_size=1024)]
+index = VectorStoreIndex.from_vector_store(
     client=client,
-    collection_name="secret_history",
-    embeddings=embedding_model
+    collection_name="llama_index_collection",
+    embedding_model=embedding_model
 )
-retriever = qdrant.as_retriever(search_kwargs={"k": 5})
+# retriever = qdrant.as_retriever(search_kwargs={"k": 5})
 compressor = FlashrankRerank(model="ms-marco-MiniLM-L-12-v2")
-compression_retriever = ContextualCompressionRetriever(
-    base_compressor=compressor, base_retriever=retriever
-)
-llm = ChatGroq(temperature=0, model_name="llama3-70b-8192")
+# compression_retriever = ContextualCompressionRetriever(
+#     base_compressor=compressor, base_retriever=retriever
+# )
+# llm = CustomLLM(model=fine_tuned_model, tokenizer=tokenizer)
+
 
 prompt_template="""
 Use the following pieces of information to answer the user's question.
@@ -66,13 +116,14 @@ Responses should be properly formatted to be easily read.
 prompt = PromptTemplate(
     template=prompt_template, input_variables=["context", "question"]
 )
-qa = RetrievalQA.from_chain_type(
-    llm=llm,
-    chain_type="stuff",
-    retriever=compression_retriever,
-    return_source_documents=True,
-    chain_type_kwargs={"prompt": prompt, "verbose":True}
-)
+# Define the query string
+query_str = "What causes Alstrom syndrome?"
+
+# Set up the query engine
+query_engine = index.as_query_engine()
+
+# Run the query and display the result
+
 
 def format_response(response):
     response_txt = response["result"]
@@ -91,7 +142,8 @@ def query():
     if not query_text:
         return jsonify({"error": "query_text is required"}), 400
     
-    response = qa.invoke(query_text)
+    response = query_engine.query(query_str)
+    display(Markdown(f"<b>{response}</b>"))
     formatted_response = format_response(response)
     
     return jsonify({"response": formatted_response})

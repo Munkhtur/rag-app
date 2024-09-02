@@ -3,3 +3,7 @@ __pycache__/
 .env
 db/
 chroma
+history_lora_model
+history-fine-tuned
+lora_model
+outputs

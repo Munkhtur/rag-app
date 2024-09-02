@@ -14,12 +14,14 @@ from qdrant_client import QdrantClient
 from dotenv import load_dotenv
 from langchain.embeddings.base import Embeddings
 from sentence_transformers import SentenceTransformer
+from langchain_fireworks import Fireworks
 
 
 load_dotenv()
 app = Flask(__name__)
 
 # Initialize your components here, so they are ready to be used by the API endpoints
+os.environ["FIREWORKS_API_KEY"] = "fw_3ZX4yv1JWAqk86NGtaZz2v7G"
 os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
 client = QdrantClient(url="http://localhost:6333") 
 # embeddings = FastEmbedEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
@@ -48,7 +50,9 @@ compressor = FlashrankRerank(model="ms-marco-MiniLM-L-12-v2")
 compression_retriever = ContextualCompressionRetriever(
     base_compressor=compressor, base_retriever=retriever
 )
-llm = ChatGroq(temperature=0, model_name="llama3-70b-8192")
+llm = Fireworks( temperature=0,
+    model="accounts/gmunkhtur-df7f59/models/llama-history", max_tokens=200
+)
 
 prompt_template="""
 Use the following pieces of information to answer the user's question.
@@ -92,6 +96,7 @@ def query():
         return jsonify({"error": "query_text is required"}), 400
     
     response = qa.invoke(query_text)
+    print(response, "response")
     formatted_response = format_response(response)
     
     return jsonify({"response": formatted_response})
